@@ -10,74 +10,98 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/gofrs/uuid/v5"
 )
 
 type Blog struct {
-	ID 		string 	`json:"id"`
-	Title 	string 	`json:"title"`
-	Content string 	`json:"content"`
+	ID 		uuid.UUID 	`json:"id"`
+	Title 	string 		`json:"title"`
+	Content string		`json:"content"`
 }
 
-var blogs = []Blog{
-	{ID: "1", Title: "Blue Train", Content: "John Coltrane"},
-	{ID: "2", Title: "Red Train", Content: "John Deax"},
-	{ID: "3", Title: "Green Train", Content: "Blaine DeBears"},
+type Blogs struct {
+	Blogs []Blog `json:"blogs"`
+}
+
+var blogs = Blogs{[]Blog{}}
+
+func (blogs *Blogs) AddNewBlog(blog Blog, uid uuid.UUID) []Blog {
+	blog.ID = uid
+    blogs.Blogs = append(blogs.Blogs, blog)
+    return blogs.Blogs
 }
 
 func main() {
-	r := chi.NewRouter()
+	router := chi.NewRouter()
 
-	r.Use(middleware.Logger)
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.RequestID)
-	r.Use(middleware.Recoverer)
+	router.Use(middleware.Logger)
+	router.Use(middleware.RequestID)
+	router.Use(middleware.RealIP)
+	router.Use(middleware.RequestID)
+	router.Use(middleware.Recoverer)
 
-	r.Get("/", func(w http.ResponseWriter, _ *http.Request) {
-		w.Write([]byte("Hi!"))
+	router.Get("/", func(response http.ResponseWriter, _ *http.Request) {
+		response.Write([]byte("Hi!"))
 	})
 
-	r.Route("/blogs", func(r chi.Router) {
+	router.Route("/blogs", func(r chi.Router) {
 		r.Get("/", getAllBlogs)
 		r.Get("/{blogID}", getBlogById)
+		r.Post("/", createBlog)
+		r.Delete("/{blogID}", deleteBlogByID)
 	})
 
-	http.ListenAndServe(":8080", r)
+	http.ListenAndServe(":8080", router)
 }
 
-func getAllBlogs(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+func getAllBlogs(response http.ResponseWriter, _ *http.Request) {
+	response.Header().Set("Content-Type", "application/json")
 
 	value, err := json.Marshal(blogs)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	w.Write(value)
+	response.Write(value)
 }
 
-func getBlogById(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+func getBlogById(response http.ResponseWriter, request *http.Request) {
+	response.Header().Set("Content-Type", "application/json")
 
-	blogID := chi.URLParam(r, "blogID")
-	blogIDIdx := slices.IndexFunc(blogs, func(blog Blog) bool {
-		return blog.ID == blogID
+	blogID := chi.URLParam(request, "blogID")
+	blogIDStringToUUID, _ := uuid.FromString(blogID)
+	blogIDIdx := slices.IndexFunc(blogs.Blogs, func(blog Blog) bool {
+		return blog.ID == blogIDStringToUUID
 	})
 	if blogIDIdx == -1 {
-		fmt.Println("There is no blog with provided id")
+		http.Error(response, http.StatusText(404), 404)
 		return
 	}
 
-	blogByID := blogs[blogIDIdx]
+	blogByID := blogs.Blogs[blogIDIdx]
 	value, err := json.Marshal(blogByID)
-
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 
-	w.Write(value)
+	response.Write(value)
 }
 
-func createBlog(w http.ResponseWriter, r *http.Request) {}
+func createBlog(response http.ResponseWriter, request *http.Request) {
+	response.Header().Set("Content-Type", "application/json")
 
-func deleteBlog(w http.ResponseWriter, r *http.Request) {}
+	var newBlog Blog
+	uid, _ := uuid.NewV4()
+
+	err := json.NewDecoder(request.Body).Decode(&newBlog)
+    if err != nil {
+        response.WriteHeader(http.StatusBadRequest)
+        response.Write([]byte(err.Error()))
+        return
+    }
+
+	blogs.AddNewBlog(newBlog, uid)
+}
+
+func deleteBlogByID(response http.ResponseWriter, request *http.Request) {}
