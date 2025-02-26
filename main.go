@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -34,6 +35,14 @@ func (blogs *Blogs) AddNewBlog(blog Blog, uid uuid.UUID) []Blog {
 func main() {
 	router := chi.NewRouter()
 
+	router.Use(cors.Handler(cors.Options{
+	    AllowedOrigins:   []string{"https://*", "http://*"},
+	    AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+	    AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+	    ExposedHeaders:   []string{"Link"},
+	    AllowCredentials: false,
+	    MaxAge:           300,
+	}))
 	router.Use(middleware.Logger)
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
@@ -46,7 +55,7 @@ func main() {
 
 	router.Route("/blogs", func(r chi.Router) {
 		r.Get("/", getAllBlogs)
-		r.Get("/{blogID}", getBlogById)
+		r.Get("/{blogID}", getBlogByID)
 		r.Post("/", createBlog)
 		r.Delete("/{blogID}", deleteBlogByID)
 	})
@@ -65,7 +74,7 @@ func getAllBlogs(response http.ResponseWriter, _ *http.Request) {
 	response.Write(value)
 }
 
-func getBlogById(response http.ResponseWriter, request *http.Request) {
+func getBlogByID(response http.ResponseWriter, request *http.Request) {
 	response.Header().Set("Content-Type", "application/json")
 
 	blogID := chi.URLParam(request, "blogID")
