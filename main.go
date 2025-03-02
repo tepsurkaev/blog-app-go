@@ -26,9 +26,26 @@ type Blogs struct {
 
 var blogs = Blogs{[]Blog{}}
 
+func (blogs *Blogs) FindBlogByID(blogID string) int {
+	blogIDToUUID, _ := uuid.FromString(blogID)
+	blogIDIdx := slices.IndexFunc(blogs.Blogs, func(blog Blog) bool {
+		return blog.ID == blogIDToUUID
+	})
+	return blogIDIdx
+}
+
 func (blogs *Blogs) AddNewBlog(blog Blog, uid uuid.UUID) []Blog {
 	blog.ID = uid
     blogs.Blogs = append(blogs.Blogs, blog)
+    return blogs.Blogs
+}
+
+func (blogs *Blogs) RemoveBlogByID(blogID string) []Blog {
+	blogIDIdx := blogs.FindBlogByID(blogID)
+	if blogIDIdx == -1 {
+		fmt.Println("There is no blog with provided id!")
+	}
+    blogs.Blogs = append(blogs.Blogs[:blogIDIdx], blogs.Blogs[blogIDIdx+1:]...)
     return blogs.Blogs
 }
 
@@ -36,7 +53,7 @@ func main() {
 	router := chi.NewRouter()
 
 	router.Use(cors.Handler(cors.Options{
-	    AllowedOrigins:   []string{"https://*", "http://*"},
+	    AllowedOrigins:   []string{"http://*"},
 	    AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 	    AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 	    ExposedHeaders:   []string{"Link"},
@@ -78,10 +95,7 @@ func getBlogByID(response http.ResponseWriter, request *http.Request) {
 	response.Header().Set("Content-Type", "application/json")
 
 	blogID := chi.URLParam(request, "blogID")
-	blogIDStringToUUID, _ := uuid.FromString(blogID)
-	blogIDIdx := slices.IndexFunc(blogs.Blogs, func(blog Blog) bool {
-		return blog.ID == blogIDStringToUUID
-	})
+	blogIDIdx := blogs.FindBlogByID(blogID)
 	if blogIDIdx == -1 {
 		http.Error(response, http.StatusText(404), 404)
 		return
@@ -113,4 +127,9 @@ func createBlog(response http.ResponseWriter, request *http.Request) {
 	blogs.AddNewBlog(newBlog, uid)
 }
 
-func deleteBlogByID(response http.ResponseWriter, request *http.Request) {}
+func deleteBlogByID(response http.ResponseWriter, request *http.Request) {
+	response.Header().Set("Content-Type", "application/json")
+
+	blogID := chi.URLParam(request, "blogID")
+	blogs.RemoveBlogByID(blogID)
+}
